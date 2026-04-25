@@ -1,0 +1,142 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 218 31% 96%;
+    --foreground: 224 31% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 31% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 31% 10%;
+
+    --primary: 220 88% 56%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 176 54% 46%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 218 24% 90%;
+    --muted-foreground: 222 14% 42%;
+
+    --accent: 35 95% 58%;
+    --accent-foreground: 224 31% 10%;
+
+    --destructive: 0 78% 56%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 20% 84%;
+    --input: 220 20% 84%;
+    --ring: 220 88% 56%;
+
+    --radius: 1.25rem;
+    --wallet-ink: 224 34% 7%;
+    --wallet-surface: 0 0% 100%;
+    --wallet-glass: 0 0% 100% / 0.62;
+    --wallet-line: 220 28% 88%;
+    --wallet-success: 151 58% 42%;
+    --gradient-app: radial-gradient(circle at 16% 12%, hsl(176 54% 46% / 0.28), transparent 30%), radial-gradient(circle at 92% 8%, hsl(35 95% 58% / 0.24), transparent 32%), linear-gradient(145deg, hsl(218 31% 96%), hsl(210 48% 91%));
+    --gradient-card: linear-gradient(145deg, hsl(224 34% 7%), hsl(220 49% 16%) 58%, hsl(176 54% 28%));
+    --shadow-wallet: 0 28px 80px -28px hsl(224 34% 7% / 0.42);
+    --shadow-soft: 0 16px 45px -22px hsl(224 34% 7% / 0.35);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 224 34% 7%;
+    --foreground: 210 40% 98%;
+
+    --card: 223 31% 12%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 223 31% 12%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 215 100% 68%;
+    --primary-foreground: 224 34% 7%;
+
+    --secondary: 176 62% 52%;
+    --secondary-foreground: 224 34% 7%;
+
+    --muted: 222 22% 18%;
+    --muted-foreground: 218 18% 71%;
+
+    --accent: 35 95% 58%;
+    --accent-foreground: 224 34% 7%;
+
+    --destructive: 0 72% 52%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 20% 23%;
+    --input: 220 20% 23%;
+    --ring: 215 100% 68%;
+    --gradient-app: radial-gradient(circle at 16% 12%, hsl(176 62% 52% / 0.24), transparent 30%), radial-gradient(circle at 92% 8%, hsl(35 95% 58% / 0.16), transparent 32%), linear-gradient(145deg, hsl(224 34% 7%), hsl(222 31% 12%));
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Manrope", "SF Pro Display", system-ui, sans-serif;
+    background: var(--gradient-app);
+    min-height: 100vh;
+  }
+
+  button,
+  a {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+}
+
+@layer utilities {
+  .wallet-gradient {
+    background: var(--gradient-card);
+  }
+
+  .wallet-shadow {
+    box-shadow: var(--shadow-wallet);
+  }
+
+  .soft-shadow {
+    box-shadow: var(--shadow-soft);
+  }
+
+  .glass-panel {
+    background: hsl(var(--wallet-glass));
+    backdrop-filter: blur(28px);
+  }
+}
