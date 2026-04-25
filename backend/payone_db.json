@@ -1,0 +1,42 @@
+{
+  "merchants": [
+    {
+      "id": "merchant_001",
+      "name": "Café Müller",
+      "category": "cafe",
+      "address": "Calwer Straße 11, 70173 Stuttgart",
+      "gps": {
+        "lat": 48.7758,
+        "lon": 9.1829
+      },
+      "current_transaction_volume": 3,
+      "avg_hourly_transaction_volume": 18,
+      "rules": {
+        "max_discount_percent": 20,
+        "min_basket_eur": 3.50,
+        "trigger_volume_threshold": 8,
+        "offer_headline_template": "Cold outside? Your cappuccino is waiting.",
+        "emotional_framing": "warm_shelter"
+      }
+    },
+    {
+      "id": "merchant_002",
+      "name": "Bäckerei Schönleber",
+      "category": "bakery",
+      "address": "Königstraße 38, 70173 Stuttgart",
+      "gps": {
+        "lat": 48.7784,
+        "lon": 9.1800
+      },
+      "current_transaction_volume": 11,
+      "avg_hourly_transaction_volume": 25,
+      "rules": {
+        "max_discount_percent": 15,
+        "min_basket_eur": 2.00,
+        "trigger_volume_threshold": 12,
+        "offer_headline_template": "Fresh out of the oven — grab one before the lunch rush.",
+        "emotional_framing": "scarcity_urgency"
+      }
+    }
+  ]
+}
