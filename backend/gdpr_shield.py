@@ -112,7 +112,7 @@ class RawLocationEvent:
     timestamp:  datetime
     lat:        float   # PII
     lon:        float   # PII
-    speed_ms:   float
+    speed_mps:  float  # metres per second
     stops:      int
 
 
@@ -191,7 +191,7 @@ class MockUser:
                 timestamp = ts,
                 lat       = lat,
                 lon       = lon,
-                speed_ms  = round(random.uniform(0.3, 1.5), 2),
+                speed_mps = round(random.uniform(0.3, 1.5), 2),
                 stops     = random.randint(0, 3),
             ))
 
@@ -326,12 +326,12 @@ class GDPRShield:
             time_bucket   = cls._bucket_timestamp(ev.timestamp)
             logger.info(
                 f"  loc: [{ev.lat:.4f},{ev.lon:.4f}] → '{neighbourhood}', "
-                f"speed={ev.speed_ms}m/s, stops={ev.stops}"
+                f"speed={ev.speed_mps}m/s, stops={ev.stops}"
             )
             clean_locations.append({
                 "area":     neighbourhood,
                 "when":     time_bucket,
-                "speed_ms": ev.speed_ms,
+                "speed_mps": ev.speed_mps,
                 "stops":    ev.stops,
             })
 
@@ -353,7 +353,65 @@ class GDPRShield:
         return clean_data
 
 
-# ── 3. LLM Analysis ───────────────────────────────────────────────────────────
+# ── 3. Profile Text Builder ───────────────────────────────────────────────────
+
+def build_user_profile_text(sanitized_data: dict) -> str:
+    """
+    Converts GDPR-sanitised spending data into a concise prose paragraph
+    suitable for inclusion in an LLM prompt.
+
+    Input is the dict produced by GDPRShield.sanitize_for_llm() — no PII.
+    Output is a plain-English summary of who this user is as a consumer.
+    """
+    txs = sanitized_data.get("transactions", [])
+    locs = sanitized_data.get("location_trail", [])
+    total = len(txs)
+
+    if total == 0:
+        return "No transaction history available for this user."
+
+    # Category frequency
+    from collections import Counter
+    cat_counts = Counter(t["category"] for t in txs)
+    top_categories = cat_counts.most_common(3)
+    cat_summary = ", ".join(
+        f"{cat} ({count}/{total} purchases)" for cat, count in top_categories
+    )
+
+    # Typical spend level
+    amount_counts = Counter(t["amount"] for t in txs)
+    top_amount = amount_counts.most_common(1)[0][0]
+
+    # Most common time of day
+    when_counts = Counter(t["when"] for t in txs)
+    top_when = when_counts.most_common(1)[0][0]
+
+    # Most common area
+    area_counts = Counter(t["location"] for t in txs)
+    top_area = area_counts.most_common(1)[0][0]
+
+    # Recent movement
+    movement_summary = ""
+    if locs:
+        avg_speed = sum(l["speed_mps"] for l in locs) / len(locs)
+        total_stops = sum(l["stops"] for l in locs)
+        latest_area = locs[-1]["area"]
+        pace = "slow" if avg_speed < 1.0 else "brisk"
+        movement_summary = (
+            f" Recent movement: {pace} pace ({avg_speed:.1f} m/s average), "
+            f"{total_stops} stops in the last 10 minutes, currently in {latest_area}."
+        )
+
+    return (
+        f"This user has made {total} purchases over the past week, "
+        f"primarily in: {cat_summary}. "
+        f"Typical spend level: {top_amount}. "
+        f"Most active during {top_when} in {top_area}."
+        f"{movement_summary}"
+    )
+
+
+# ── 4. LLM Analysis ───────────────────────────────────────────────────────────
 
 async def analyze_spending_habits(sanitized_data: dict[str, Any]) -> str:
     """
@@ -414,7 +472,7 @@ async def analyze_spending_habits(sanitized_data: dict[str, Any]) -> str:
     return insight
 
 
-# ── 4. Full Pipeline ──────────────────────────────────────────────────────────
+# ── 5. Full Pipeline ──────────────────────────────────────────────────────────
 
 async def run_pipeline(seed: int | None = 42) -> dict[str, Any]:
     """
@@ -433,12 +491,14 @@ async def run_pipeline(seed: int | None = 42) -> dict[str, Any]:
     # Step 2: Sanitise — this is the GDPR boundary
     sanitized = GDPRShield.sanitize_for_llm(raw_data)
 
-    # Step 3: Analyse using only the clean data
+    # Step 3: Build profile text and analyse using only the clean data
+    profile_text = build_user_profile_text(sanitized)
     insight = await analyze_spending_habits(sanitized)
 
     return {
-        "user_token": sanitized["user_token"],
-        "insight":    insight,
+        "user_token":       sanitized["user_token"],
+        "insight":          insight,
+        "profile_text":     profile_text,
         "records_analysed": sanitized["record_count"],
     }
 
@@ -451,4 +511,5 @@ if __name__ == "__main__":
     print(f"  User token  : {result['user_token']}")
     print(f"  Records     : {result['records_analysed']}")
     print(f"  Insight     : {result['insight']}")
+    print(f"  Profile     : {result.get('profile_text', 'n/a')}")
     print("═" * 60 + "\n")

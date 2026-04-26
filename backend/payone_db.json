@@ -4,10 +4,11 @@
       "id": "merchant_001",
       "name": "Café Müller",
       "category": "cafe",
-      "address": "Calwer Straße 11, 70173 Stuttgart",
+      "description": "A cosy independent café on Jungfernstieg known for hand-pulled espresso, homemade cakes, and warm window seats. Popular with remote workers and locals looking for a quiet refuge from Hamburg's harbour wind.",
+      "address": "Jungfernstieg 30, 20354 Hamburg",
       "gps": {
-        "lat": 48.7758,
-        "lon": 9.1829
+        "lat": 53.5508,
+        "lon": 10.0001
       },
       "current_transaction_volume": 3,
       "avg_hourly_transaction_volume": 18,
@@ -23,12 +24,13 @@
       "id": "merchant_002",
       "name": "Bäckerei Schönleber",
       "category": "bakery",
-      "address": "Königstraße 38, 70173 Stuttgart",
+      "description": "A family-run bakery on the Zeil open since 1962, known for freshly baked pretzels, Laugenstangen, and seasonal pastries. Prices start under €2 — the go-to quick stop on Frankfurt's main shopping street.",
+      "address": "Zeil 89, 60313 Frankfurt am Main",
       "gps": {
-        "lat": 48.7784,
-        "lon": 9.1800
+        "lat": 50.1139,
+        "lon": 8.6803
       },
-      "current_transaction_volume": 11,
+      "current_transaction_volume": 5,
       "avg_hourly_transaction_volume": 25,
       "rules": {
         "max_discount_percent": 15,
@@ -36,6 +38,46 @@
         "trigger_volume_threshold": 12,
         "offer_headline_template": "Fresh out of the oven — grab one before the lunch rush.",
         "emotional_framing": "scarcity_urgency"
+      }
+    },
+    {
+      "id": "merchant_003",
+      "name": "Metzger & Co.",
+      "category": "restaurant",
+      "description": "A casual Bavarian lunch spot on Kaufingerstraße serving Weißwurst, Obatzda, and daily specials on a chalkboard menu. Busy at noon, calm by mid-afternoon.",
+      "address": "Kaufingerstraße 10, 80331 Munich",
+      "gps": {
+        "lat": 48.1374,
+        "lon": 11.5680
+      },
+      "current_transaction_volume": 22,
+      "avg_hourly_transaction_volume": 30,
+      "rules": {
+        "max_discount_percent": 12,
+        "min_basket_eur": 8.00,
+        "trigger_volume_threshold": 15,
+        "offer_headline_template": "Lunch is on — table waiting for you.",
+        "emotional_framing": "convenience"
+      }
+    },
+    {
+      "id": "merchant_004",
+      "name": "Thalia München",
+      "category": "bookstore",
+      "description": "Munich's flagship Thalia bookstore on Kaufingerstraße — three floors of books, audiobooks, stationery, and a reading corner near Marienplatz. Quietest in the early afternoon, ideal for unhurried browsing.",
+      "address": "Kaufingerstraße 30, 80331 Munich",
+      "gps": {
+        "lat": 48.1374,
+        "lon": 11.5755
+      },
+      "current_transaction_volume": 6,
+      "avg_hourly_transaction_volume": 14,
+      "rules": {
+        "max_discount_percent": 10,
+        "min_basket_eur": 12.00,
+        "trigger_volume_threshold": 8,
+        "offer_headline_template": "A quiet afternoon — perfect for a new read.",
+        "emotional_framing": "discovery"
       }
     }
   ]

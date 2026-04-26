@@ -12,33 +12,187 @@
     @keyframes pulse  { 0%,100%{opacity:1;}50%{opacity:0.3;} }
     .fade-in { animation: fadeIn 0.4s ease; }
     .pulse   { animation: pulse 1.5s infinite; }
+    .scenario-btn { transition: all 0.2s; border: 2px solid transparent; }
+    .scenario-btn.active { border-color: #6366f1; background: #1e1e40; }
+
+    /* Consent gate */
+    #consent-gate {
+      position: fixed; inset: 0; z-index: 9999;
+      background: #0f0f1a;
+      overflow-y: auto;
+      display: flex; align-items: flex-start; justify-content: center;
+      padding: 2rem 1rem;
+    }
+    #consent-gate.hidden { display: none; }
+    #app-content { display: none; }
+    #app-content.visible { display: block; }
+
+    .consent-check { accent-color: #6366f1; width: 1.1rem; height: 1.1rem; cursor: pointer; flex-shrink: 0; margin-top: 2px; }
+    #btn-agree { transition: all 0.2s; }
+    #btn-agree:disabled { opacity: 0.35; cursor: not-allowed; }
+    #btn-agree:not(:disabled):hover { background: #4f46e5; }
   </style>
 </head>
 <body class="min-h-screen text-white">
+
+<!-- ══════════════════════════════════════════════════════════════
+     CONSENT GATE — shown before any app content
+     Must be accepted in full before proceeding
+     ══════════════════════════════════════════════════════════════ -->
+<div id="consent-gate">
+  <div class="max-w-md w-full">
+
+    <!-- Logo / brand -->
+    <div class="mb-8 text-center">
+      <p class="text-indigo-400 text-xs font-semibold tracking-widest uppercase mb-2">DSV Gruppe · Generative City-Wallet</p>
+      <h1 class="text-3xl font-black mb-1">City Wallet</h1>
+      <p class="text-gray-500 text-sm">Your privacy, your control.</p>
+    </div>
+
+    <!-- Privacy notice card -->
+    <div class="bg-[#1a1a2e] border border-[#2a2a50] rounded-2xl p-6 mb-5">
+      <p class="text-white font-bold text-base mb-1">Before you continue</p>
+      <p class="text-gray-400 text-xs mb-5 leading-relaxed">
+        City Wallet offers you personalised discounts from nearby merchants. To do this we need to process some information about you. Please read and accept each item below — all are required under GDPR Art. 6(1)(a) (consent-based processing).
+      </p>
+
+      <!-- Processing items -->
+      <div class="space-y-4">
+
+        <!-- 1. Location -->
+        <label class="flex gap-3 cursor-pointer group">
+          <input type="checkbox" class="consent-check" id="c1" onchange="evalConsent()">
+          <div>
+            <p class="text-white text-sm font-semibold group-hover:text-indigo-300 transition-colors">📍 Approximate location (neighbourhood only)</p>
+            <p class="text-gray-400 text-xs mt-0.5 leading-relaxed">
+              Your GPS coordinates are converted to a <strong class="text-gray-300">neighbourhood name</strong> on your device and then discarded. Raw coordinates are never transmitted or stored. We use this to find merchants within 300 m of you.
+            </p>
+          </div>
+        </label>
+
+        <!-- 2. Movement -->
+        <label class="flex gap-3 cursor-pointer group">
+          <input type="checkbox" class="consent-check" id="c2" onchange="evalConsent()">
+          <div>
+            <p class="text-white text-sm font-semibold group-hover:text-indigo-300 transition-colors">🚶 Movement signals (speed &amp; stop count)</p>
+            <p class="text-gray-400 text-xs mt-0.5 leading-relaxed">
+              Walking speed and the number of times you pause are used on-device to infer whether you might be open to a spontaneous detour. These signals are aggregated into a plain-text summary and the raw data is dropped immediately.
+            </p>
+          </div>
+        </label>
+
+        <!-- 3. Transaction aggregation -->
+        <label class="flex gap-3 cursor-pointer group">
+          <input type="checkbox" class="consent-check" id="c3" onchange="evalConsent()">
+          <div>
+            <p class="text-white text-sm font-semibold group-hover:text-indigo-300 transition-colors">💳 Transaction history — aggregated &amp; anonymised</p>
+            <p class="text-gray-400 text-xs mt-0.5 leading-relaxed">
+              Your past Payone transactions are grouped by <strong class="text-gray-300">category</strong> (e.g. Food &amp; Beverage, Books) and <strong class="text-gray-300">spend band</strong> (&lt;€5 / €5–20 / €20–50 / €50+). Merchant names, exact amounts, and timestamps are stripped. Only the resulting category profile is used for personalisation.
+            </p>
+          </div>
+        </label>
+
+        <!-- 4. Self-declared demographics -->
+        <label class="flex gap-3 cursor-pointer group">
+          <input type="checkbox" class="consent-check" id="c4" onchange="evalConsent()">
+          <div>
+            <p class="text-white text-sm font-semibold group-hover:text-indigo-300 transition-colors">👤 Self-declared profile (age group, interests, profession)</p>
+            <p class="text-gray-400 text-xs mt-0.5 leading-relaxed">
+              Information you voluntarily provide — your approximate age group, sex, profession, and interests — is used to tailor the tone and wording of offers. This data is <strong class="text-gray-300">never sold</strong> and is processed only to match you with the most relevant offer.
+            </p>
+          </div>
+        </label>
+
+        <!-- 5. LLM processing -->
+        <label class="flex gap-3 cursor-pointer group">
+          <input type="checkbox" class="consent-check" id="c5" onchange="evalConsent()">
+          <div>
+            <p class="text-white text-sm font-semibold group-hover:text-indigo-300 transition-colors">🧠 AI-assisted offer generation</p>
+            <p class="text-gray-400 text-xs mt-0.5 leading-relaxed">
+              The anonymised summaries above are sent to an <strong class="text-gray-300">open-weight language model</strong> (Llama 3.1, hosted on Groq) to select the best-matching merchant and write a personalised offer card. No personal identifiers are included in this request. You can withdraw consent and delete your profile at any time.
+            </p>
+          </div>
+        </label>
+
+      </div>
+    </div>
+
+    <!-- GDPR rights reminder -->
+    <div class="bg-[#12122a] border border-[#1e1e40] rounded-xl px-5 py-4 mb-6 text-xs text-gray-400 leading-relaxed">
+      <p class="text-gray-300 font-semibold mb-1">Your rights under GDPR</p>
+      You may <strong class="text-white">withdraw consent</strong> at any time, request <strong class="text-white">access</strong> to your data, ask for <strong class="text-white">erasure</strong>, or <strong class="text-white">object to processing</strong> — with no effect on your ability to use City Wallet's other features. Contact <span class="text-indigo-400">privacy@dsv-gruppe.de</span> to exercise any right.
+    </div>
+
+    <!-- Select-all shortcut -->
+    <label class="flex items-center gap-2 mb-4 cursor-pointer text-xs text-gray-400 hover:text-white transition-colors">
+      <input type="checkbox" class="consent-check" id="c-all" onchange="toggleAll(this)">
+      Accept all five items at once
+    </label>
+
+    <!-- CTA -->
+    <button id="btn-agree" disabled onclick="acceptConsent()"
+      class="w-full bg-indigo-600 text-white font-bold rounded-2xl py-4 text-base mb-4">
+      I agree — continue to City Wallet
+    </button>
+
+    <p class="text-center text-gray-600 text-xs">
+      By continuing you confirm you are at least 16 years old (GDPR Art. 8).
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     MAIN APP — hidden until consent is given
+     ══════════════════════════════════════════════════════════════ -->
+<div id="app-content">
 <div class="max-w-md mx-auto px-4 py-8">
 
   <!-- Header -->
   <div class="mb-6">
     <p class="text-indigo-400 text-xs font-semibold tracking-widest uppercase mb-1">DSV Gruppe · Generative City-Wallet</p>
     <h1 class="text-3xl font-black">City Wallet</h1>
-    <p class="text-gray-500 text-sm mt-1">Stuttgart Old Town · Mia, 28, Tuesday lunch break</p>
+    <p class="text-gray-500 text-sm mt-1" id="header-city">Hamburg · Mia, 28</p>
   </div>
 
   <!-- Architecture panel -->
   <div class="bg-[#1a1a2e] border border-[#2a2a50] rounded-2xl p-4 mb-6">
-    <p class="text-gray-400 text-xs uppercase tracking-widest mb-3">Privacy-First Architecture</p>
+    <p class="text-gray-400 text-xs uppercase tracking-widest mb-3">How It Works</p>
     <div class="flex items-start gap-3 mb-3 pb-3 border-b border-[#2a2a45]">
       <span class="text-xl">📱</span>
       <div>
-        <p class="text-white text-sm font-semibold">On-Device Context Encoder <span class="text-amber-400 text-xs font-normal">(rule-based NLP · no model download)</span></p>
-        <p class="text-gray-500 text-xs mt-0.5">Reads raw GPS, movement, time and Payone proximity. Builds a natural-language situation summary. <strong class="text-white">Raw signals never leave this device.</strong></p>
+        <p class="text-white text-sm font-semibold">Step 1 — On-Device Only <span class="text-amber-400 text-xs font-normal">(rule-based · no model download)</span></p>
+        <p class="text-gray-500 text-xs mt-0.5">
+          Raw GPS, movement speed, stop count, and Payone transaction history stay on the device.
+          Rule-based NLP converts them into two plain-text summaries:
+          a <strong class="text-white">situation summary</strong> (what is happening right now) and
+          a <strong class="text-white">spending profile</strong> (who Mia is as a consumer — categories, typical spend, active hours, area).
+          Coordinates, merchant names, exact amounts, and timestamps are stripped before anything leaves the browser.
+        </p>
+      </div>
+    </div>
+    <div class="flex items-start gap-3 pb-3 border-b border-[#2a2a45] mb-3">
+      <span class="text-xl">☁️</span>
+      <div>
+        <p class="text-white text-sm font-semibold">Step 2 — Backend Context <span class="text-amber-400 text-xs font-normal">(FastAPI · Payone stub)</span></p>
+        <p class="text-gray-500 text-xs mt-0.5">
+          The server provides live Payone transaction volumes for all 4 nearby merchants —
+          how busy each one is right now vs. their hourly average.
+          Merchants below their activity threshold have <strong class="text-white">trigger_active: true</strong>,
+          meaning they need customers and are eligible to offer a discount.
+        </p>
       </div>
     </div>
     <div class="flex items-start gap-3">
       <span class="text-xl">🧠</span>
       <div>
-        <p class="text-white text-sm font-semibold">Reasoning + Matching LLM <span class="text-green-400 text-xs font-normal">(Groq · Llama 3.1 8B)</span></p>
-        <p class="text-gray-500 text-xs mt-0.5">Receives the situation summary + full merchant catalog. Reasons about user needs, selects the best merchant, generates the offer — all in one pass.</p>
+        <p class="text-white text-sm font-semibold">Step 3 — LLM Reasoning + Selection <span class="text-green-400 text-xs font-normal">(Groq · Llama 3.1 8B)</span></p>
+        <p class="text-gray-500 text-xs mt-0.5">
+          The LLM receives all three inputs in one prompt: the spending profile, the situation summary,
+          and the merchant catalog with rules (max discount, min basket, preferred emotional framing).
+          It reasons across <em>who Mia is</em>, <em>what is happening now</em>, and <em>which merchant needs her most</em>
+          — then selects the best match and generates a personalised offer card.
+          No template, no hardcoded rule — the selection and the copy are both written by the model.
+        </p>
       </div>
     </div>
   </div>
@@ -46,23 +200,86 @@
   <!-- ── SCREEN 1: Context ── -->
   <div id="screen-context">
 
+    <!-- Scenario selector -->
+    <div class="mb-4">
+      <!-- A/B pair: same city, same merchant, different person -->
+      <p class="text-gray-400 text-xs uppercase tracking-widest mb-1">Same city · same café · different person</p>
+      <p class="text-indigo-400 text-xs mb-2">Run both → compare the offer wording the LLM writes</p>
+      <div class="grid grid-cols-2 gap-2 mb-3">
+        <button onclick="setScenario('cold')" id="btn-cold"
+          class="scenario-btn active bg-[#1e1e30] rounded-xl p-3 text-left">
+          <span class="text-lg block mb-1">🥶</span>
+          <p class="text-white text-xs font-semibold leading-tight">Mia · Hamburg</p>
+          <p class="text-gray-500 text-xs mt-0.5">28 · female · cold &amp; tired</p>
+        </button>
+        <button onclick="setScenario('senior')" id="btn-senior"
+          class="scenario-btn bg-[#1e1e30] rounded-xl p-3 text-left">
+          <span class="text-lg block mb-1">🧓</span>
+          <p class="text-white text-xs font-semibold leading-tight">Werner · Hamburg</p>
+          <p class="text-gray-500 text-xs mt-0.5">67 · male · same conditions</p>
+        </button>
+      </div>
+      <!-- Contextual variation scenarios -->
+      <p class="text-gray-400 text-xs uppercase tracking-widest mb-1">Different city · different context</p>
+      <p class="text-gray-600 text-xs mb-2">Context sensing: live weather from each city</p>
+      <div class="grid grid-cols-2 gap-2">
+        <button onclick="setScenario('stroll')" id="btn-stroll"
+          class="scenario-btn bg-[#1e1e30] rounded-xl p-3 text-left">
+          <span class="text-lg block mb-1">☀️</span>
+          <p class="text-white text-xs font-semibold leading-tight">Klaus · Munich</p>
+          <p class="text-gray-500 text-xs mt-0.5">58 · male · post-lunch stroll</p>
+        </button>
+        <button onclick="setScenario('rainy')" id="btn-rainy"
+          class="scenario-btn bg-[#1e1e30] rounded-xl p-3 text-left">
+          <span class="text-lg block mb-1">🌧️</span>
+          <p class="text-white text-xs font-semibold leading-tight">Sara · Frankfurt</p>
+          <p class="text-gray-500 text-xs mt-0.5">35 · female · rainy errands</p>
+        </button>
+      </div>
+    </div>
+
     <!-- Raw signals -->
     <div class="bg-[#1e1e30] rounded-2xl p-5 mb-4">
       <p class="text-gray-400 text-xs uppercase tracking-widest mb-3">
         Raw Device Signals
         <span class="text-red-400 normal-case font-normal ml-1">(never sent to server)</span>
       </p>
-      <div class="flex justify-between py-2 border-b border-[#2a2a45]"><span class="text-gray-500 text-sm">GPS</span><span class="text-gray-300 text-sm font-mono">48.7758°N, 9.1829°E</span></div>
-      <div class="flex justify-between py-2 border-b border-[#2a2a45]"><span class="text-gray-500 text-sm">Movement</span><span class="text-gray-300 text-sm">0.8 m/s · slow</span></div>
-      <div class="flex justify-between py-2 border-b border-[#2a2a45]"><span class="text-gray-500 text-sm">Stops (10 min)</span><span class="text-amber-400 text-sm font-semibold">2 stops</span></div>
+      <div class="flex justify-between py-2 border-b border-[#2a2a45]"><span class="text-gray-500 text-sm">GPS</span><span class="text-gray-300 text-sm font-mono" id="raw-gps">53.5508°N, 10.0001°E</span></div>
+      <div class="flex justify-between py-2 border-b border-[#2a2a45]"><span class="text-gray-500 text-sm">Movement</span><span id="raw-movement" class="text-gray-300 text-sm">0.8 m/s · slow</span></div>
+      <div class="flex justify-between py-2 border-b border-[#2a2a45]"><span class="text-gray-500 text-sm">Stops (10 min)</span><span id="raw-stops" class="text-amber-400 text-sm font-semibold">2 stops</span></div>
       <div class="flex justify-between py-2 border-b border-[#2a2a45]"><span class="text-gray-500 text-sm">Time</span><span class="text-gray-300 text-sm" id="raw-time">—</span></div>
-      <div class="flex justify-between py-2 border-b border-[#2a2a45]"><span class="text-gray-500 text-sm">Nearest merchant</span><span class="text-gray-300 text-sm">Café Müller, 80m</span></div>
-      <div class="flex justify-between py-2"><span class="text-gray-500 text-sm">Payone activity</span><span class="text-amber-400 text-sm font-semibold">3/18 txns — quiet</span></div>
+      <div class="flex justify-between py-2 border-b border-[#2a2a45]"><span class="text-gray-500 text-sm">Nearest merchants</span><span class="text-gray-300 text-sm">4 nearby</span></div>
+      <div class="flex justify-between py-2"><span class="text-gray-500 text-sm" id="raw-weather-label">Weather</span><span id="raw-weather" class="text-amber-400 text-sm font-semibold">9°C · overcast</span></div>
+    </div>
+
+    <!-- User profile (on-device) -->
+    <div class="bg-[#1a1a2e] border border-[#2a2a50] rounded-2xl p-5 mb-4">
+      <p class="text-gray-400 text-xs uppercase tracking-widest mb-1" id="profile-panel-title">User Profile</p>
+      <p class="text-green-400 text-xs mb-3">Built on-device · GDPR-anonymised · no PII</p>
+      <div class="flex flex-wrap gap-2 mb-3">
+        <div class="bg-[#0f0f1a] rounded-xl px-3 py-2 text-xs">
+          <span class="text-gray-500">Age group</span>
+          <span class="text-white font-semibold ml-2" id="demo-age">late 20s</span>
+        </div>
+        <div class="bg-[#0f0f1a] rounded-xl px-3 py-2 text-xs">
+          <span class="text-gray-500">Sex</span>
+          <span class="text-white font-semibold ml-2" id="demo-sex">female</span>
+        </div>
+        <div class="bg-[#0f0f1a] rounded-xl px-3 py-2 text-xs">
+          <span class="text-gray-500">Profession</span>
+          <span class="text-white font-semibold ml-2" id="demo-profession">UX Designer</span>
+        </div>
+      </div>
+      <div class="mb-3">
+        <span class="text-gray-500 text-xs">Interests</span>
+        <div class="flex flex-wrap gap-1 mt-1" id="demo-interests"></div>
+      </div>
+      <p class="text-gray-300 text-xs leading-relaxed bg-[#0f0f1a] rounded-xl p-3 font-mono" id="profile-text">—</p>
     </div>
 
     <!-- On-device encoder output -->
     <div class="bg-[#1a1a2e] border border-[#2a2a50] rounded-2xl p-5 mb-4">
-      <p class="text-gray-400 text-xs uppercase tracking-widest mb-2">On-Device Encoder Output</p>
+      <p class="text-gray-400 text-xs uppercase tracking-widest mb-2">On-Device Situation Summary</p>
       <div id="encoder-idle" class="text-gray-600 text-sm text-center py-2">Press button to encode context…</div>
       <div id="encoder-running" class="hidden pulse text-amber-400 text-xs py-2">Encoding raw signals into situation summary…</div>
       <div id="encoder-result" class="hidden">
@@ -85,9 +302,9 @@
 
     <button id="btn-sense" onclick="runFullFlow()"
       class="w-full bg-indigo-600 hover:bg-indigo-500 rounded-2xl py-5 font-bold text-lg transition-colors">
-      Find Nearby Offers
+      Find Best Offer
     </button>
-    <p class="text-gray-600 text-xs text-center mt-2">Raw signals encoded on-device · only summary reaches server</p>
+    <p class="text-gray-600 text-xs text-center mt-2">Profile + situation encoded on-device · only anonymised text reaches server</p>
   </div>
 
   <!-- ── SCREEN 2: Offer Card ── -->
@@ -140,44 +357,199 @@
     <button onclick="document.getElementById('error-box').classList.add('hidden')" class="mt-2 text-red-500 text-xs underline">Dismiss</button>
   </div>
 
-</div>
+</div><!-- /max-w-md -->
+</div><!-- /app-content -->
 <script>
   const API = window.location.port === '8000' ? '' : 'http://127.0.0.1:8000';
   let currentOffer = null;
+  let activeScenario = 'cold';
+
+  // Per-scenario live weather fetched on page load from each merchant's GPS coords.
+  // Falls back to fallbackWeather if OpenWeather key is missing or unreachable.
+  const liveWeatherByScenario = {};
+
+  // ── Scenario definitions ───────────────────────────────────────────────────
+  const SCENARIOS = {
+    cold: {
+      label: 'Cold & Tired',
+      userName: 'Mia',
+      userAge: 28,
+      userAgeGroup: 'late 20s',
+      userSex: 'female',
+      profession: 'UX Designer',
+      interests: ['specialty coffee', 'yoga', 'design books', 'weekend markets'],
+      city: 'Hamburg city centre',
+      merchantId: 'merchant_001',
+      lat: 53.5508, lon: 10.0001,
+      distance: 80,
+      fallbackWeather: { temp_celsius: 9.0, feels_like: 6.0, description: 'overcast clouds' },
+      movement: '0.8 m/s · slow',
+      stops: '2 stops',
+      profileText:
+        'This user has made 8 purchases over the past week, primarily in: ' +
+        'Food & Beverage (5/8 purchases), Health & Wellbeing (2/8 purchases), Retail — Books & Media (1/8 purchases). ' +
+        'Typical spend level: Small purchase (€5–20). Most active during Tuesday morning in Hamburg Altstadt. ' +
+        'Recent movement: slow pace (0.8 m/s average), 2 stops in the last 10 minutes, currently near Binnenalster.',
+    },
+    stroll: {
+      label: 'Post-Lunch Stroll',
+      userName: 'Klaus',
+      userAge: 58,
+      userAgeGroup: 'late 50s',
+      userSex: 'male',
+      profession: 'Retired engineer',
+      interests: ['history books', 'classical music', 'local cuisine', 'long walks'],
+      city: 'Munich city centre',
+      merchantId: 'merchant_004',
+      lat: 48.1374, lon: 11.5755,
+      distance: 120,
+      fallbackWeather: { temp_celsius: 18.0, feels_like: 17.0, description: 'partly cloudy' },
+      movement: '1.2 m/s · moderate',
+      stops: '0 stops',
+      profileText:
+        'This user has made 8 purchases over the past week, primarily in: ' +
+        'Retail — Books & Media (4/8 purchases), Entertainment (2/8 purchases), Food & Beverage (2/8 purchases). ' +
+        'Typical spend level: Medium purchase (€20–50). Most active during Wednesday afternoon near Marienplatz. ' +
+        'Recent movement: moderate pace (1.2 m/s average), 0 stops in the last 10 minutes, currently near Marienplatz.',
+    },
+    rainy: {
+      label: 'Rainy Errands',
+      userName: 'Sara',
+      userAge: 35,
+      userAgeGroup: 'mid 30s',
+      userSex: 'female',
+      profession: 'Marketing Manager',
+      interests: ['healthy food', 'running', 'podcasts', 'quick lunches'],
+      city: 'Frankfurt city centre',
+      merchantId: 'merchant_002',
+      lat: 50.1139, lon: 8.6803,
+      distance: 150,
+      fallbackWeather: { temp_celsius: 12.0, feels_like: 9.5, description: 'light rain' },
+      movement: '1.4 m/s · brisk',
+      stops: '1 stop',
+      profileText:
+        'This user has made 8 purchases over the past week, primarily in: ' +
+        'Food & Beverage (6/8 purchases), Grocery (1/8 purchases), Mobility (1/8 purchases). ' +
+        'Typical spend level: Micro purchase (<€5). Most active during Friday lunchtime in Frankfurt Innenstadt. ' +
+        'Recent movement: brisk pace (1.4 m/s average), 1 stop in the last 10 minutes, currently on the Zeil.',
+    },
+    senior: {
+      label: 'Cold & Tired',
+      userName: 'Werner',
+      userAge: 67,
+      userAgeGroup: 'late 60s',
+      userSex: 'male',
+      profession: 'Retired doctor',
+      interests: ['newspapers', 'traditional German food', 'chess', 'afternoon coffee'],
+      city: 'Hamburg city centre',
+      merchantId: 'merchant_001',
+      lat: 53.5508, lon: 10.0001,
+      distance: 80,
+      fallbackWeather: { temp_celsius: 9.0, feels_like: 6.0, description: 'overcast clouds' },
+      movement: '0.6 m/s · very slow',
+      stops: '3 stops',
+      profileText:
+        'This user has made 8 purchases over the past week, primarily in: ' +
+        'Food & Beverage (4/8 purchases), Entertainment (2/8 purchases), Health & Wellbeing (2/8 purchases). ' +
+        'Typical spend level: Medium purchase (€20–50). Most active during Saturday lunch and Sunday afternoon in Hamburg Altstadt. ' +
+        'Recent movement: very slow pace (0.6 m/s average), 3 stops in the last 10 minutes — unhurried, likely resting.',
+    },
+  };
+
+  // Returns live weather for a scenario, falling back to its stub values.
+  function getWeather(key) {
+    return liveWeatherByScenario[key] || SCENARIOS[key].fallbackWeather;
+  }
+
+  // Updates the Raw Device Signals weather row from live or fallback data.
+  function updateWeatherDisplay(key) {
+    const w = getWeather(key);
+    const isLive = !!liveWeatherByScenario[key];
+    document.getElementById('raw-weather').textContent =
+      `${w.temp_celsius.toFixed(1)}°C · ${w.description}${isLive ? ' (live)' : ''}`;
+  }
+
+  function setScenario(key) {
+    activeScenario = key;
+    ['cold', 'stroll', 'rainy', 'senior'].forEach(k => {
+      document.getElementById('btn-' + k).classList.toggle('active', k === key);
+    });
+
+    // Always return to the context screen so the button is reachable
+    currentOffer = null;
+    hideError();
+    ['screen-offer', 'screen-redeem', 'screen-success'].forEach(id =>
+      document.getElementById(id).classList.add('hidden'));
+    document.getElementById('screen-context').classList.remove('hidden');
+
+    // Re-enable both action buttons in case they were disabled mid-flow
+    const senseBtn = document.getElementById('btn-sense');
+    senseBtn.disabled = false;
+    senseBtn.textContent = 'Find Best Offer';
+    const redeemBtn = document.getElementById('btn-redeem');
+    if (redeemBtn) { redeemBtn.disabled = false; redeemBtn.textContent = 'Confirm Redemption'; }
+
+    const s = SCENARIOS[key];
+    document.getElementById('header-city').textContent = `${s.city} · ${s.userName}, ${s.userAge}`;
+    document.getElementById('raw-gps').textContent = `${s.lat.toFixed(4)}°N, ${s.lon.toFixed(4)}°E`;
+    document.getElementById('raw-movement').textContent = s.movement;
+    document.getElementById('raw-stops').textContent = s.stops;
+    document.getElementById('profile-panel-title').textContent = `${s.userName}'s Profile`;
+    document.getElementById('demo-age').textContent = s.userAgeGroup;
+    document.getElementById('demo-sex').textContent = s.userSex;
+    document.getElementById('demo-profession').textContent = s.profession;
+    const interestContainer = document.getElementById('demo-interests');
+    interestContainer.innerHTML = s.interests.map(i =>
+      `<span class="bg-indigo-900/60 text-indigo-300 rounded-full px-2 py-0.5 text-xs">${i}</span>`
+    ).join('');
+    document.getElementById('profile-text').textContent = s.profileText;
+    updateWeatherDisplay(key);
+    resetPanels();
+  }
 
   // ── On-device context encoder ──────────────────────────────────────────────
-  // Builds a rich natural-language situation summary from raw sensor signals.
+  // Builds a rich natural-language situation summary from scenario signals.
   // NO raw coordinates, movement data, or personal data leave this function.
-  function encodeContext(ctx) {
+  function encodeContext(ctx, scenario) {
+    const s = SCENARIOS[scenario];
     const now   = new Date();
     const time  = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const day   = now.toLocaleDateString('en-US', { weekday: 'long' });
-    const cold  = ctx.temp_celsius < 14;
-    const rain  = /rain|drizzle|shower/i.test(ctx.weather_description);
+    // Use live weather fetched for this scenario's merchant GPS coords.
+    // Falls back to the scenario's stub values if OpenWeather is unavailable.
+    const w     = getWeather(scenario);
+    const temp  = w.temp_celsius;
+    const feels = w.feels_like;
+    const desc  = w.description;
+    const cold  = temp < 14;
+    const rain  = /rain|drizzle|shower/i.test(desc);
     const volPct = Math.round(ctx.payone_volume_ratio * 100);
 
     const parts = [];
 
     parts.push(
-      `It is ${time} on a ${day} in Stuttgart old town. ` +
-      `The temperature is ${ctx.temp_celsius.toFixed(1)}°C and feels like ${ctx.feels_like.toFixed(1)}°C` +
-      ` with ${ctx.weather_description}${cold ? ', which is uncomfortably cold for being outside' : ''}.` +
+      `It is ${time} on a ${day} in ${s.city}. ` +
+      `The temperature is ${temp.toFixed(1)}°C and feels like ${feels.toFixed(1)}°C` +
+      ` with ${desc}${cold ? ', which is uncomfortably cold for being outside' : ''}.` +
       (rain ? ' It is raining.' : '')
     );
 
+    const moving = s.movement.includes('slow') ? 'slowly' : s.movement.includes('brisk') ? 'briskly' : 'at a moderate pace';
+    const stopsNum = parseInt(s.stops);
     parts.push(
-      `The user is moving slowly (approx. 0.8 m/s) and has paused twice in the last ten minutes, ` +
-      `suggesting they are drifting without a clear destination — likely open to a spontaneous stop.`
+      `The user is moving ${moving} and has paused ${stopsNum} time${stopsNum !== 1 ? 's' : ''} in the last ten minutes` +
+      (stopsNum === 0 ? ', suggesting purposeful movement.' : ', suggesting they are drifting without a clear destination — likely open to a spontaneous stop.')
     );
 
     parts.push(
-      `${ctx.merchant_name} is approximately 80 metres away. ` +
-      `It is currently running at ${volPct}% of its normal activity level ` +
+      `There are 4 nearby merchants within 300 metres. ` +
+      `${ctx.merchant_name} (the nearest active merchant) is approximately ${s.distance} metres away and ` +
+      `is currently running at ${volPct}% of its normal activity level ` +
       `(${ctx.current_transactions} vs. ${ctx.avg_transactions} usual transactions per hour) — ` +
       `${ctx.trigger_active ? 'unusually quiet, which means the merchant may benefit from a targeted offer' : 'normal traffic levels'}.`
     );
 
-    if (ctx.local_events.length > 0) {
+    if (ctx.local_events && ctx.local_events.length > 0) {
       parts.push(`Nearby local events today: ${ctx.local_events.slice(0, 2).join(', ')}.`);
     }
 
@@ -192,42 +564,56 @@
     hideError();
     resetPanels();
 
+    const scenario = SCENARIOS[activeScenario];
+
     try {
-      // Step 1: Get live context signals from backend (weather, Payone)
+      // Step 1: Get live context signals from backend using this scenario's merchant + coords
       const ctxRes = await fetch(`${API}/context`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ merchant_id: 'merchant_001', lat: 48.7758, lon: 9.1829 })
+        body: JSON.stringify({ merchant_id: scenario.merchantId, lat: scenario.lat, lon: scenario.lon })
       });
       if (!ctxRes.ok) throw new Error(await ctxRes.text());
       const ctx = await ctxRes.json();
 
-      renderContextPanel(ctx);
+      renderContextPanel(ctx, scenario);
       document.getElementById('raw-time').textContent =
         new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · ' +
         new Date().toLocaleDateString('en-US', { weekday: 'long' });
 
-      // Step 2: On-device encoder — builds situation text, NO raw data sent
+      // Step 2: On-device encoding — GDPR boundary
       document.getElementById('encoder-idle').classList.add('hidden');
       document.getElementById('encoder-running').classList.remove('hidden');
-      await new Promise(r => setTimeout(r, 500)); // visual pause
+      await new Promise(r => setTimeout(r, 500));
 
-      const situationText = encodeContext(ctx);
+      const situationText = encodeContext(ctx, activeScenario);
+      const profileText   = scenario.profileText;
+
       document.getElementById('encoder-running').classList.add('hidden');
       document.getElementById('encoder-result').classList.remove('hidden');
       document.getElementById('encoder-text').textContent = situationText;
 
-      // Step 3: Send situation text to /offer/match — LLM reasons + selects merchant + generates offer
-      btn.textContent = '⏳ LLM reasoning over merchant catalog…';
+      // Step 3: Send BOTH profile AND situation to /offer/match
+      // LLM reasons from WHO Mia is + WHAT is happening now + ALL merchant rules
+      btn.textContent = '⏳ LLM reasoning across profile + catalog…';
       const matchRes = await fetch(`${API}/offer/match`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_context: situationText, lat: 48.7758, lon: 9.1829 })
+        body: JSON.stringify({
+          user_context: situationText,
+          user_profile: profileText,
+          user_age_group: scenario.userAgeGroup,
+          user_sex: scenario.userSex,
+          user_profession: scenario.profession,
+          user_interests: scenario.interests,
+          scenario: activeScenario,
+          lat: scenario.lat,
+          lon: scenario.lon
+        })
       });
       if (!matchRes.ok) throw new Error(await matchRes.text());
       currentOffer = await matchRes.json();
 
-      // Show LLM reasoning
       if (currentOffer.intent_matched) {
         document.getElementById('reasoning-text').textContent = currentOffer.intent_matched;
         document.getElementById('reasoning-panel').classList.remove('hidden');
@@ -239,19 +625,40 @@
       showError(e.message || 'Backend unreachable. Is uvicorn running on :8000?');
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Find Nearby Offers';
+      btn.textContent = 'Find Best Offer';
     }
   }
 
   // ── UI helpers ─────────────────────────────────────────────────────────────
-  function renderContextPanel(ctx) {
-    const volPct = Math.round(ctx.payone_volume_ratio * 100);
-    document.getElementById('ctx-signals').innerHTML = [
-      row('Weather', `${ctx.weather_description}, ${ctx.temp_celsius.toFixed(1)}°C`),
-      row('Feels like', `${ctx.feels_like.toFixed(1)}°C`),
-      row('Payone volume', `${ctx.current_transactions}/${ctx.avg_transactions} txns/hr (${volPct}%)`, ctx.trigger_active),
-      ctx.local_events.length ? row('Local events', ctx.local_events[0]) : '',
-    ].join('');
+  // Scenario-specific merchant activity sent to LLM (mirrors backend _SCENARIO_VOLUME_OVERRIDES)
+  const SCENARIO_VOLUMES = {
+    cold:   { merchant_001: [3,18],  merchant_002: [18,25], merchant_003: [22,30], merchant_004: [12,14] },
+    stroll: { merchant_001: [15,18], merchant_002: [20,25], merchant_003: [22,30], merchant_004: [4,14]  },
+    rainy:  { merchant_001: [14,18], merchant_002: [4,25],  merchant_003: [22,30], merchant_004: [11,14] },
+    senior: { merchant_001: [3,18],  merchant_002: [18,25], merchant_003: [22,30], merchant_004: [12,14] },
+  };
+  const MERCHANT_NAMES = {
+    merchant_001: 'Café Müller', merchant_002: 'Bäckerei Schönleber',
+    merchant_003: 'Metzger & Co.', merchant_004: 'Thalia München',
+  };
+  const MERCHANT_THRESHOLDS = { merchant_001: 8, merchant_002: 12, merchant_003: 15, merchant_004: 8 };
+
+  function renderContextPanel(ctx, scenario) {
+    const s = scenario || SCENARIOS[activeScenario];
+    const vols = SCENARIO_VOLUMES[activeScenario];
+    const rows = Object.entries(vols).map(([id, [cur, avg]]) => {
+      const trigger = cur < MERCHANT_THRESHOLDS[id];
+      const pct = Math.round(cur / avg * 100);
+      return row(MERCHANT_NAMES[id], `${cur}/${avg} txns/hr (${pct}%)${trigger ? ' — quiet' : ''}`, trigger);
+    });
+    const w = getWeather(activeScenario);
+    const isLive = !!liveWeatherByScenario[activeScenario];
+    const weatherLabel = `${w.temp_celsius.toFixed(1)}°C · ${w.description}${isLive ? ' (OpenWeather live)' : ' (scenario)'}`;
+    rows.unshift(row('Weather', weatherLabel));
+    if (ctx.local_events && ctx.local_events.length) {
+      rows.push(row('Local events', ctx.local_events[0]));
+    }
+    document.getElementById('ctx-signals').innerHTML = rows.join('');
     document.getElementById('ctx-panel').classList.remove('hidden');
   }
 
@@ -294,9 +701,10 @@
 
     document.getElementById('offer-details').innerHTML =
       detailRow('Discount code', offer.discount_code, true) +
-      detailRow('Merchant selected by LLM', offer.merchant_name) +
+      detailRow('Merchant chosen by LLM', offer.merchant_name) +
       detailRow('Emotional framing', offer.emotional_framing) +
-      detailRow('Generated by', 'Llama 3.1 8B · Groq') +
+      detailRow('Reasoning based on', 'Profile + Situation + Rules') +
+      detailRow('Generated by', offer.llm_provider || 'LLM reasoning engine') +
       detailRow('Expires', new Date(offer.expiry_iso).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }));
 
     document.getElementById('btn-claim').style.backgroundColor = offer.color_hex;
@@ -360,6 +768,8 @@
     ['screen-offer','screen-redeem','screen-success'].forEach(id =>
       document.getElementById(id).classList.add('hidden'));
     document.getElementById('screen-context').classList.remove('hidden');
+    const redeemBtn = document.getElementById('btn-redeem');
+    if (redeemBtn) { redeemBtn.disabled = false; redeemBtn.textContent = 'Confirm Redemption'; }
   }
 
   function resetPanels() {
@@ -378,10 +788,86 @@
     document.getElementById('error-box').classList.add('hidden');
   }
 
-  // Set live time on load
-  document.getElementById('raw-time').textContent =
-    new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · ' +
-    new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  // Fetch real weather for every scenario's merchant GPS on page load — in parallel.
+  // Each scenario points to a different merchant location so weather is fetched
+  // from those exact coordinates via OpenWeather (through /context on the backend).
+  async function prefetchAllWeather() {
+    await Promise.all(
+      Object.entries(SCENARIOS).map(async ([key, s]) => {
+        try {
+          const res = await fetch(`${API}/context`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ merchant_id: s.merchantId, lat: s.lat, lon: s.lon })
+          });
+          if (!res.ok) return;
+          const ctx = await res.json();
+          // Only store as live if it differs meaningfully from the backend stub (11°C)
+          if (ctx.temp_celsius != null && Math.abs(ctx.temp_celsius - 11.0) > 0.5) {
+            liveWeatherByScenario[key] = {
+              temp_celsius: ctx.temp_celsius,
+              feels_like:   ctx.feels_like,
+              description:  ctx.weather_description,
+            };
+          }
+        } catch { /* silent fallback */ }
+      })
+    );
+    updateWeatherDisplay(activeScenario);
+  }
+
+  // ── Consent gate logic ────────────────────────────────────────────────────
+  const CONSENT_KEY = 'citywallet_consent_v1';
+  const REQUIRED_BOXES = ['c1','c2','c3','c4','c5'];
+
+  function evalConsent() {
+    const allChecked = REQUIRED_BOXES.every(id => document.getElementById(id).checked);
+    document.getElementById('btn-agree').disabled = !allChecked;
+    // keep the "accept all" master checkbox in sync
+    document.getElementById('c-all').checked = allChecked;
+  }
+
+  function toggleAll(master) {
+    REQUIRED_BOXES.forEach(id => { document.getElementById(id).checked = master.checked; });
+    evalConsent();
+  }
+
+  function acceptConsent() {
+    sessionStorage.setItem(CONSENT_KEY, JSON.stringify({
+      accepted: true,
+      timestamp: new Date().toISOString(),
+      items: ['location_neighbourhood', 'movement_signals', 'transaction_aggregation',
+              'self_declared_demographics', 'llm_processing'],
+    }));
+    document.getElementById('consent-gate').classList.add('hidden');
+    document.getElementById('app-content').classList.add('visible');
+    // Now safe to initialise the app
+    initApp();
+  }
+
+  function initApp() {
+    document.getElementById('raw-time').textContent =
+      new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · ' +
+      new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    setScenario('cold');
+    prefetchAllWeather();
+  }
+
+  // Check if consent was already given in this session
+  (function checkExistingConsent() {
+    const stored = sessionStorage.getItem(CONSENT_KEY);
+    if (stored) {
+      try {
+        const c = JSON.parse(stored);
+        if (c.accepted) {
+          document.getElementById('consent-gate').classList.add('hidden');
+          document.getElementById('app-content').classList.add('visible');
+          initApp();
+          return;
+        }
+      } catch { /* fall through to gate */ }
+    }
+  })();
 </script>
 </body>
 </html>

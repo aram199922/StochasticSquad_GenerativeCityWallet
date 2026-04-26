@@ -13,7 +13,7 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from pydantic import BaseModel
@@ -146,7 +146,13 @@ class IntentRequest(BaseModel):
 
 
 class MatchRequest(BaseModel):
-    user_context: str             # rich text built on-device — no raw signals
+    user_context: str                   # situation summary built on-device — no raw signals
+    user_profile: str = ""              # GDPR-anonymised spending profile, also built on-device
+    user_age_group: str = ""            # self-declared age bucket, e.g. "late 20s" — not exact DOB
+    user_sex: str = ""                  # self-declared: male / female / other / prefer not to say
+    user_profession: str = ""           # self-declared occupation for contextual tailoring
+    user_interests: list[str] = []      # self-declared interest tags for personalisation
+    scenario: str = ""                  # demo scenario key — controls which merchant is quiet
     lat: float = 48.7758
     lon: float = 9.1829
 
@@ -163,6 +169,7 @@ class GenUICard(BaseModel):
     color_hex: str
     emotional_framing: str
     intent_matched: str
+    llm_provider: str = "rule-based stub"
 
 
 class RedeemRequest(BaseModel):
@@ -299,6 +306,7 @@ def _call_openai_compat(
     model: str,
     messages: list,
     timeout: int = 30,
+    temperature: float = 0.72,
 ) -> dict:
     """Calls any OpenAI-compatible API and returns the parsed JSON offer."""
     client = OpenAI(api_key=api_key, base_url=base_url)
@@ -306,7 +314,7 @@ def _call_openai_compat(
         model=model,
         messages=messages,
         response_format={"type": "json_object"},
-        temperature=0.7,
+        temperature=temperature,
         timeout=timeout,
     )
     return json.loads(response.choices[0].message.content)
@@ -404,13 +412,13 @@ def generate_offer(req: IntentRequest) -> GenUICard:
         offer_id=offer_id,
         merchant_id=merchant["id"],
         merchant_name=merchant["name"],
-        headline=llm_result["headline"],
-        subline=llm_result["subline"],
-        discount_percent=llm_result["discount_percent"],
+        headline=llm_result.get("headline", "A great deal nearby."),
+        subline=llm_result.get("subline", "Limited time offer."),
+        discount_percent=int(llm_result.get("discount_percent", 10)),
         discount_code=discount_code,
         expiry_iso=expiry,
-        color_hex=llm_result["color_hex"],
-        emotional_framing=llm_result["emotional_framing"],
+        color_hex=llm_result.get("color_hex", "#6366f1"),
+        emotional_framing=llm_result.get("emotional_framing", "convenience"),
         intent_matched=req.intent,
     )
 
@@ -455,26 +463,57 @@ def redeem_offer(req: RedeemRequest) -> RedeemResponse:
 _MATCH_SYSTEM_PROMPT = """
 You are the Generative City-Wallet reasoning engine for DSV Gruppe.
 
-You will receive:
-1. A description of a user's current situation — composed on their device from sensor data. No raw location or personal data was transmitted; only this abstract description.
-2. A JSON list of nearby merchants, each with their live Payone transaction activity and offer rules.
+You will receive FOUR inputs:
+1. USER DEMOGRAPHICS — self-declared age group, sex, profession, and personal interests.
+2. USER SPENDING PROFILE — anonymised historical data (no PII).
+3. USER CURRENT SITUATION — built on-device from sensor data; no raw location transmitted.
+4. NEARBY MERCHANT CATALOG — merchants with live Payone volumes and offer rules.
 
-Your task — reason step by step:
-A. What does this user most likely need right now given their situation?
-B. Which merchant from the list is the best match? Only consider merchants where trigger_active is true.
-C. What offer parameters would feel genuinely useful and not intrusive?
-D. Write a headline that references the actual situation (weather, time, mood) — not a generic phrase.
+━━━ DEMOGRAPHIC COPY RULES (mandatory — violations disqualify the response) ━━━
+
+AGE: teens/20s
+  Tone: casual, warm, energetic. Use short punchy sentences.
+  OK:   "Your coffee break just got better." / "Treat yourself — you've earned it."
+  NEVER: formal language, "esteemed", "distinguished", heavy discounts framed as charity.
+
+AGE: 30s
+  Tone: practical, efficient, value-focused. Respect their time.
+  OK:   "Quick stop, real reward." / "Fresh pick-up on the way."
+  NEVER: youth slang, party/FOMO framing, overly casual ("hey girl!").
+
+AGE: 40s–50s
+  Tone: calm, quality-focused, no manufactured urgency. Speak to experience.
+  OK:   "A well-earned pause." / "Something worth savouring today."
+  NEVER: "Flash deal!", exclamation spam, slang, youth references.
+
+AGE: 60s and above
+  Tone: warm, respectful, dignified. Comfort and tradition over novelty.
+  OK:   "A quiet table is ready for you." / "A familiar warmth awaits."
+  NEVER: "Score big!", party framing, slang, urgency pressure, digital-native references.
+
+SEX consideration: adapt emotional hook, not the merchant category.
+  Female users: lean toward self-care, warmth, discovery framing when equal options exist.
+  Male users: lean toward quality, reliability, efficiency framing when equal options exist.
+  Never assume or stereotype beyond these gentle copy-tone adjustments.
+
+━━━ TASK — reason step by step ━━━
+A. What tone and vocabulary fits this person's age group and sex (apply rules above)?
+B. What do the profession and interests reveal about lifestyle, values, and what resonates with them?
+C. What does the spending profile tell you about category preferences and typical needs?
+D. Does the current situation reinforce or override those preferences?
+E. Which merchant is the best match? Prefer trigger_active = true merchants. Align merchant category to interests and profession where possible.
+F. Write a headline and subline that feel personally written for this exact person — not a template. The reasoning must explicitly name how demographics, profession, and interests shaped the copy.
 
 STRICT OUTPUT RULES:
 - Respond ONLY with a single valid JSON object — no markdown, no explanation outside the JSON.
-- headline: ≤8 words, emotionally resonant, situationally specific.
+- headline: ≤8 words, emotionally resonant, age- and situation-specific.
 - subline: ≤15 words, factual (discount, min basket, expiry hint).
-- color_hex: warm and fitting for the merchant category and framing.
+- color_hex: muted/warm tones for 50+ users; richer/brighter tones for under-35 users.
 - emotional_framing: one of [warm_shelter, scarcity_urgency, celebration, convenience, discovery].
 
 Return exactly this shape:
 {
-  "reasoning": "2-3 sentences explaining why this merchant and this offer fit the user right now",
+  "reasoning": "2-3 sentences: why this merchant + why this specific copy fits this person's age, sex, profession, interests, history, and moment",
   "merchant_id": "string",
   "merchant_name": "string",
   "headline": "string",
@@ -486,10 +525,65 @@ Return exactly this shape:
 """.strip()
 
 
-def _build_match_user_prompt(user_context: str, merchants: list) -> str:
+_MERCHANT_DISTANCES = {
+    "merchant_001": 80,
+    "merchant_002": 210,
+    "merchant_003": 160,
+    "merchant_004": 290,
+}
+
+# Scenario overrides: set current_transaction_volume per merchant so that
+# exactly one merchant has trigger_active=true per scenario, making the
+# LLM choice deterministic while still showing genuine reasoning.
+# Format: { scenario_key: { merchant_id: current_volume } }
+_SCENARIO_VOLUME_OVERRIDES: dict[str, dict[str, int]] = {
+    "cold": {
+        # Only Café Müller is quiet (3 < threshold 8) → trigger fires
+        "merchant_001": 3,   # quiet — trigger ON
+        "merchant_002": 18,  # normal — trigger OFF (18 >= 12)
+        "merchant_003": 22,  # busy   — trigger OFF
+        "merchant_004": 12,  # normal — trigger OFF (12 >= 8)
+    },
+    "stroll": {
+        # Only Thalia bookstore is quiet (4 < threshold 8) → trigger fires
+        "merchant_001": 15,  # normal — trigger OFF (15 >= 8)
+        "merchant_002": 20,  # normal — trigger OFF (20 >= 12)
+        "merchant_003": 22,  # busy   — trigger OFF
+        "merchant_004": 4,   # quiet  — trigger ON
+    },
+    "rainy": {
+        # Only Bäckerei Schönleber is quiet (4 < threshold 12) → trigger fires
+        "merchant_001": 14,  # normal — trigger OFF (14 >= 8)
+        "merchant_002": 4,   # quiet  — trigger ON
+        "merchant_003": 22,  # busy   — trigger OFF
+        "merchant_004": 11,  # normal — trigger OFF (11 >= 8)
+    },
+    "senior": {
+        # Same Hamburg context as 'cold' — only Café Müller is quiet → trigger fires.
+        # Werner and Mia are in the same place with the same merchant available.
+        # Only the demographics differ — forcing a pure A/B comparison of the LLM copy.
+        "merchant_001": 3,   # quiet  — trigger ON  (same as cold)
+        "merchant_002": 18,  # normal — trigger OFF
+        "merchant_003": 22,  # busy   — trigger OFF
+        "merchant_004": 12,  # normal — trigger OFF
+    },
+}
+
+
+def _build_match_user_prompt(
+    user_context: str,
+    merchants: list,
+    user_profile: str = "",
+    user_age_group: str = "",
+    user_sex: str = "",
+    user_profession: str = "",
+    user_interests: list | None = None,
+    scenario: str = "",
+) -> str:
+    overrides = _SCENARIO_VOLUME_OVERRIDES.get(scenario, {})
     catalog = []
     for m in merchants:
-        current = m["current_transaction_volume"]
+        current = overrides.get(m["id"], m["current_transaction_volume"])
         avg = m["avg_hourly_transaction_volume"]
         ratio = round(current / avg, 2) if avg > 0 else 0.0
         threshold = m["rules"]["trigger_volume_threshold"]
@@ -498,7 +592,7 @@ def _build_match_user_prompt(user_context: str, merchants: list) -> str:
             "id": m["id"],
             "name": m["name"],
             "category": m["category"],
-            "distance_m": 80 if m["id"] == "merchant_001" else 210,
+            "distance_m": _MERCHANT_DISTANCES.get(m["id"], 300),
             "current_transactions": current,
             "avg_transactions": avg,
             "volume_ratio": ratio,
@@ -507,20 +601,57 @@ def _build_match_user_prompt(user_context: str, merchants: list) -> str:
             "min_basket_eur": m["rules"]["min_basket_eur"],
             "preferred_framing": m["rules"]["emotional_framing"],
         })
+
+    demo_parts = []
+    if user_age_group:
+        demo_parts.append(f"Age group: {user_age_group}")
+    if user_sex:
+        demo_parts.append(f"Sex (self-declared): {user_sex}")
+    if user_profession:
+        demo_parts.append(f"Profession: {user_profession}")
+    if user_interests:
+        demo_parts.append(f"Interests: {', '.join(user_interests)}")
+    demographics_section = (
+        f"USER DEMOGRAPHICS:\n" + "\n".join(demo_parts) + "\n\n"
+        if demo_parts
+        else "USER DEMOGRAPHICS: Not provided.\n\n"
+    )
+
+    profile_section = (
+        f"USER SPENDING PROFILE (GDPR-anonymised — no PII):\n{user_profile}\n\n"
+        if user_profile.strip()
+        else "USER SPENDING PROFILE: Not available — reason from current situation only.\n\n"
+    )
+
     return (
-        f"USER SITUATION (built on-device, no raw data transmitted):\n{user_context}\n\n"
+        f"{demographics_section}"
+        f"{profile_section}"
+        f"USER CURRENT SITUATION (built on-device, no raw data transmitted):\n{user_context}\n\n"
         f"NEARBY MERCHANT CATALOG:\n{json.dumps(catalog, indent=2)}"
     )
 
 
-def _reasoning_match(user_context: str, merchants: list) -> dict:
+def _reasoning_match(
+    user_context: str,
+    merchants: list,
+    user_profile: str = "",
+    user_age_group: str = "",
+    user_sex: str = "",
+    user_profession: str = "",
+    user_interests: list | None = None,
+    scenario: str = "",
+) -> dict:
     """
-    Single LLM call: reason about user situation + compare against merchant
-    catalog + generate the best matching offer. Falls back to stub if no LLM.
+    Single LLM call: reason about user spending profile + current situation +
+    merchant catalog. Selects the best merchant and generates the offer.
+    Falls back to stub if no LLM key is configured.
     """
     messages = [
         {"role": "system", "content": _MATCH_SYSTEM_PROMPT},
-        {"role": "user", "content": _build_match_user_prompt(user_context, merchants)},
+        {"role": "user", "content": _build_match_user_prompt(
+            user_context, merchants, user_profile,
+            user_age_group, user_sex, user_profession, user_interests, scenario
+        )},
     ]
 
     providers = []
@@ -540,20 +671,36 @@ def _reasoning_match(user_context: str, merchants: list) -> dict:
         providers.append({"name": "OpenAI", "base_url": "https://api.openai.com/v1",
                           "api_key": os.getenv("OPENAI_API_KEY"), "model": "gpt-4o-mini"})
 
+    # Lower temperature for 60+ users: dignified, stable copy. Higher for 20s: creative.
+    age_temp_map = {"teens": 0.85, "20s": 0.85, "30s": 0.75, "40s": 0.70, "50s": 0.65, "60s": 0.55, "70s": 0.50}
+    temp = next((v for k, v in age_temp_map.items() if k in user_age_group.lower()), 0.72)
+
+    logger.info(f"MATCH ENGINE: user_age_group='{user_age_group}' user_sex='{user_sex}' profession='{user_profession}' interests={user_interests} temperature={temp}")
+
     for p in providers:
         logger.info(f"MATCH ENGINE: Trying {p['name']} ({p['model']}) ...")
         try:
-            result = _call_openai_compat(p["base_url"], p["api_key"], p["model"], messages)
+            result = _call_openai_compat(p["base_url"], p["api_key"], p["model"], messages, temperature=temp)
             logger.info(f"MATCH ENGINE: {p['name']} selected {result.get('merchant_id')} → \"{result.get('headline')}\"")
             logger.info(f"MATCH ENGINE: Reasoning — {result.get('reasoning')}")
+            result["llm_provider"] = f"{p['model']} · {p['name']}"
             return result
         except Exception as e:
             logger.warning(f"MATCH ENGINE: {p['name']} failed — {e}")
             continue
 
-    # Stub fallback — pick the quietest merchant
+    # Stub fallback — pick the quietest merchant (respecting scenario overrides)
     logger.info("MATCH ENGINE: All providers failed — using stub fallback")
-    best = min(merchants, key=lambda m: m["current_transaction_volume"] / m["avg_hourly_transaction_volume"])
+    overrides = _SCENARIO_VOLUME_OVERRIDES.get(scenario, {})
+    best = min(
+        merchants,
+        key=lambda m: (
+            overrides.get(m["id"], m["current_transaction_volume"])
+            / m["avg_hourly_transaction_volume"]
+            if m["avg_hourly_transaction_volume"] > 0
+            else float("inf")
+        ),
+    )
     rules = best["rules"]
     return {
         "reasoning": "No LLM available — selected quietest merchant by Payone volume ratio.",
@@ -577,9 +724,14 @@ def match_offer(req: MatchRequest) -> GenUICard:
     db = _load_payone_db()
     merchants = db["merchants"]
 
-    result = _reasoning_match(req.user_context, merchants)
+    result = _reasoning_match(
+        req.user_context, merchants, req.user_profile,
+        req.user_age_group, req.user_sex,
+        req.user_profession, req.user_interests,
+        req.scenario,
+    )
 
-    merchant_id = result["merchant_id"]
+    merchant_id = result.get("merchant_id") or (merchants[0]["id"] if merchants else "unknown")
     offer_id = str(uuid.uuid4())
     discount_code = secrets.token_urlsafe(6).upper()
     expiry = (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat()
@@ -587,15 +739,16 @@ def match_offer(req: MatchRequest) -> GenUICard:
     card = GenUICard(
         offer_id=offer_id,
         merchant_id=merchant_id,
-        merchant_name=result["merchant_name"],
-        headline=result["headline"],
-        subline=result["subline"],
-        discount_percent=result["discount_percent"],
+        merchant_name=result.get("merchant_name", "Nearby merchant"),
+        headline=result.get("headline", "A great deal nearby."),
+        subline=result.get("subline", "Limited time offer."),
+        discount_percent=int(result.get("discount_percent", 10)),
         discount_code=discount_code,
         expiry_iso=expiry,
-        color_hex=result["color_hex"],
-        emotional_framing=result["emotional_framing"],
+        color_hex=result.get("color_hex", "#6366f1"),
+        emotional_framing=result.get("emotional_framing", "convenience"),
         intent_matched=result.get("reasoning", ""),
+        llm_provider=result.get("llm_provider", "rule-based stub"),
     )
 
     record = card.model_dump()
