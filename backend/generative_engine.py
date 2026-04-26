@@ -12,7 +12,7 @@ to the model.
 
 from __future__ import annotations
 
-import json
+import asyncio
 import logging
 import os
 from typing import Any
@@ -145,41 +145,17 @@ _FALLBACKS: dict[str, dict[str, Any]] = {
 # ---------------------------------------------------------------------------
 
 _SYSTEM_PROMPT = """\
-You are a Hyper-personalized Local Marketing Expert embedded inside a \
-privacy-first city wallet app.
-
-Your sole job is to craft a micro-offer card for a user based ONLY on the \
-current atmospheric city scenario — never on personal data, purchase history, \
-or any user-identifiable information.
-
-OUTPUT RULES (non-negotiable):
-1. Respond with ONLY a single valid JSON object — no markdown, no explanation, \
-no trailing text.
-2. The JSON must match this exact schema:
-{{
-  "offer_details": {{
-    "headline":       "<max 8 words, punchy and scenario-appropriate>",
-    "description":    "<1-2 sentences, emotionally resonant, scenario-aware>",
-    "discount_value": "<concise value proposition, e.g. '20% off' or 'Free upgrade'>",
-    "tone":           "<the emotional register you used>"
-  }},
-  "ui_styling": {{
-    "primary_color":       "<hex color that matches the mood>",
-    "background_gradient": "<CSS linear-gradient() string>",
-    "icon_name":           "<lowercase-kebab-case icon hint>"
-  }}
-}}
-3. Never include user names, locations, personal preferences, or any PII.
-4. The offer must feel earned and natural for the scenario — not generic.
-5. The headline must provoke an emotional reaction in under 3 seconds of reading.\
+You are a city-wallet marketing AI. Output ONLY valid JSON, no extra text.
+Schema:
+{{"offer_details":{{"headline":"<8 words max>","description":"<2 sentences>","discount_value":"<string matching merchant cap>","tone":"<mood>"}},"ui_styling":{{"primary_color":"<hex>","background_gradient":"<CSS linear-gradient()>","icon_name":"<kebab-case>"}}}}
+Rules: no PII, scenario-based only, headline must be punchy and emotional. Discount must not exceed the merchant cap.\
 """
 
 _HUMAN_PROMPT = """\
-Current city scenario: {scenario_id}
-Emotional tone required: {tone}
-Atmospheric context: {situation}
-
-Generate the offer card JSON now.\
+Scenario: {scenario_id}. Time of day: {time_period}. Tone: {tone}.
+Context: {situation}
+Merchant: {merchant_name}. Max discount allowed: {max_discount}%. Framing style: {emotional_framing}.
+Reply with JSON only.\
 """
 
 
@@ -201,17 +177,24 @@ class GenerativeEngine:
         model: str | None = None,
         base_url: str | None = None,
         temperature: float = 0.7,
+        timeout: float = 20.0,
     ) -> None:
         resolved_model = model or os.getenv("OLLAMA_MODEL", "phi3")
         resolved_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        self._timeout = float(os.getenv("OLLAMA_TIMEOUT", timeout))
 
         llm = ChatOllama(
             model=resolved_model,
             base_url=resolved_url,
             temperature=temperature,
-            # Instruct Ollama to return JSON — models that support the format
-            # flag will honour it; others rely on the prompt alone.
             format="json",
+            # Hard cap on total wall-clock wait time.
+            request_timeout=self._timeout,
+            # Limit output to ~200 tokens — the JSON payload is small,
+            # so this cuts generation time dramatically on CPU hardware.
+            num_predict=200,
+            # Smaller context window = faster prefill on CPU.
+            num_ctx=512,
         )
 
         prompt = ChatPromptTemplate.from_messages(
@@ -231,7 +214,14 @@ class GenerativeEngine:
             resolved_url,
         )
 
-    async def generate_offer(self, scenario_id: str) -> dict[str, Any]:
+    async def generate_offer(
+        self,
+        scenario_id: str,
+        merchant_name: str = "local café",
+        max_discount: int = 20,
+        emotional_framing: str = "warm_shelter",
+        time_period: str = "afternoon",
+    ) -> dict[str, Any]:
         """
         Generate a structured GenUI offer payload for the given scenario.
 
@@ -239,7 +229,11 @@ class GenerativeEngine:
         or returns malformed JSON — the mobile renderer always gets a valid card.
 
         Args:
-            scenario_id: One of the scenario labels from ScenarioEngine.
+            scenario_id:       One of the scenario labels from ScenarioEngine.
+            merchant_name:     Display name of the featured merchant.
+            max_discount:      Hard cap on discount percentage from merchant rules.
+            emotional_framing: Merchant's preferred framing style (e.g. warm_shelter).
+            time_period:       Time of day label (morning/midday/afternoon/evening/night).
 
         Returns:
             A dict matching the GenUI Data Contract (offer_details + ui_styling).
@@ -248,17 +242,31 @@ class GenerativeEngine:
         fallback = _FALLBACKS.get(scenario_id, _FALLBACKS[_DEFAULT_SCENARIO])
 
         try:
-            result: dict[str, Any] = await self._chain.ainvoke(
-                {
-                    "scenario_id": scenario_id,
-                    "tone": context["tone"],
-                    "situation": context["situation"],
-                }
+            result: dict[str, Any] = await asyncio.wait_for(
+                self._chain.ainvoke(
+                    {
+                        "scenario_id": scenario_id,
+                        "tone": context["tone"],
+                        "situation": context["situation"],
+                        "merchant_name": merchant_name,
+                        "max_discount": max_discount,
+                        "emotional_framing": emotional_framing,
+                        "time_period": time_period,
+                    }
+                ),
+                timeout=self._timeout,
             )
             _validate_contract(result)
             logger.info("LLM offer generated for scenario=%s", scenario_id)
             return result
 
+        except asyncio.TimeoutError:
+            logger.warning(
+                "LLM timed out after %.0fs for scenario=%s — using fallback.",
+                self._timeout,
+                scenario_id,
+            )
+            return fallback
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "LLM generation failed for scenario=%s (%s) — using fallback.",
