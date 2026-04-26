@@ -1,23 +1,94 @@
 # Generative City-Wallet
 
-## 🎯 The Core Vision
-To revitalize inner-city retail by giving local merchants the algorithmic AI power of global e-commerce. We are building a privacy-first mobile app that uses real-world context (weather, events, live store foot-traffic) to dynamically generate hyper-personalized local offers via Generative UI. 
+## The Core Vision
+Revitalise inner-city retail by giving local merchants the algorithmic AI power of global e-commerce. A privacy-first mobile app that uses real-world context (weather, events, live Payone foot-traffic) to dynamically generate hyper-personalised local offers via Generative UI.
 
-**Powered by:** DSV-Gruppe (German Savings Banks Financial Group).
+**Powered by:** DSV-Gruppe | MIT Club of Northern California & Germany
 
-## 🧑‍🤝‍🧑 The Scenario (Mia)
-Mia is 28, walking through Stuttgart. It is 11°C and overcast. Café Müller is 80m away and currently quiet (low Payone transaction volume).
-Instead of a generic 30-day coupon, our app detects the context and instantly generates a dynamic UI widget: *"Cold outside? Your cappuccino is waiting."*
+---
 
-## 🚀 Key Modules to Build
-1. **Context Sensing Layer:** Combine real-time weather (OpenWeather), local events (Tavily API), location, and stubbed Payone merchant transaction data.
-2. **Generative Offer Engine:** Offers are generated on the fly as strict Generative UI (GenUI) JSON payloads, NOT static templates.
-3. **Seamless Checkout:** Scan a dynamic QR code to simulate a redeemed offer, closing the loop for the merchant.
+## The Three Modules
 
-## 🛡️ Privacy First
-To comply with GDPR, raw location history does not go to the cloud. Local on-device models (or simulated local scripts) extract abstract intents (e.g., `{"intent": "seek_warm_shelter"}`) and only send that abstract signal to the backend.
+| Module | What it does |
+|---|---|
+| **01 Context Sensing** | Aggregates weather, Tavily events, and Payone transaction volume |
+| **02 Generative Offer Engine** | LLM generates a strict GenUI JSON card — never markdown |
+| **03 Seamless Checkout** | Dynamic QR code → redemption API → merchant dashboard confirms |
 
-## 📁 Repository Structure
-- `/backend`: FastAPI Python orchestrator & Generative Engine.
-- `/mobile-app`: React Native (Expo) consumer wallet app.
-- `/merchant-dashboard`: Next.js web interface for rules & checkout simulation.
+**GDPR:** Raw location stays on-device. An on-device intent function (simulated SLM) converts signals into an abstract string (e.g. `seek_warm_drink`) — only that goes to the backend.
+
+---
+
+## Repository Structure
+
+```
+/backend              FastAPI orchestrator & GenUI offer engine
+/mobile-app           React Native (Expo) consumer wallet app
+/merchant-dashboard   Next.js 14 merchant portal
+```
+
+---
+
+## Running Locally
+
+### 1. Backend
+
+```bash
+cd backend
+cp .env.example .env        # add your API keys
+pip install -r requirements.txt
+uvicorn main:app --reload
+# → http://127.0.0.1:8000/docs
+```
+
+**Required env vars** (all optional — app stubs gracefully when missing):
+- `OPENAI_API_KEY` — used for dynamic offer generation (falls back to rule-based stub)
+- `OPENWEATHER_API_KEY` — weather context (falls back to 11°C overcast stub)
+- `TAVILY_API_KEY` — local event signals (falls back to demo events)
+
+### 2. Mobile App
+
+```bash
+cd mobile-app
+cp .env.example .env        # set EXPO_PUBLIC_API_URL to your backend IP
+npm install
+npx expo start
+```
+
+Scan the QR code with Expo Go on your phone, or press `w` for the web version.
+
+### 3. Merchant Dashboard
+
+```bash
+cd merchant-dashboard
+cp .env.example .env.local  # set NEXT_PUBLIC_API_URL
+npm install
+npm run dev
+# → http://localhost:3000
+```
+
+---
+
+## Demo Flow (End-to-End)
+
+1. Start backend → open `/docs` to confirm `/health` returns 2 merchants loaded
+2. Open mobile app → tap **Find Nearby Offers**
+3. Context signals appear (weather, Payone volume, local events)
+4. On-device intent is shown (e.g. `seek_warm_drink`) — raw coords never leave device
+5. GenUI offer card appears with dynamic headline, colour, and discount
+6. Tap **Claim Offer** → QR code screen
+7. Tap **Confirm Redemption** → ✓ success screen
+8. Open merchant dashboard → see the offer in the log and redemption count incremented
+
+---
+
+## API Reference
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/health` | System health + merchant DB count |
+| GET | `/merchants` | List all Payone merchants |
+| POST | `/context` | Aggregate context signals for a merchant |
+| POST | `/offer/generate` | Generate a GenUI offer card |
+| POST | `/offer/redeem` | Validate and redeem a discount code |
+| GET | `/merchant/{id}/activity` | Live stats for merchant dashboard |
